@@ -16,6 +16,11 @@ jobs:
 
     steps:
     - uses: actions/checkout@v4
+    - name: Set up Rust Nightly
+      uses: actions-rs/toolchain@v1
+      with:
+        toolchain: nightly
+        override: true
     - name: Build
       run: cd Cell && cargo +nightly build --verbose
     - name: Run tests
