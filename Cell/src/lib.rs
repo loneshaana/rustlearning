@@ -1,3 +1,3 @@
-#![feature(auto_traits, negative_impls)]
+#![feature(negative_impls)]
 mod cell;
 mod unsafecell;
