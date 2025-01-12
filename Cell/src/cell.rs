@@ -1,6 +1,4 @@
-#![feature(auto_traits, negative_impls)]
-
-use std::cell::UnsafeCell;
+use crate::unsafecell::UnsafeCell;
 
 struct Cell<T: ?Sized> {
     value: UnsafeCell<T>,
@@ -96,17 +94,15 @@ impl<T: ?Sized> Cell<T> {
     }
 }
 
-// #[cfg(test)]
-// mod tests {
-//     use super::*;
+#[cfg(test)]
+mod tests {
+    use super::*;
 
-//     #[test]
-//     fn it_works() {
-//         let c = Cell {
-//             value: UnsafeCell::new(42),
-//         };
-//         let d = Cell::new(42);
-//         assert_eq!(c.value, 42);
-//         assert_eq!(c.value, d.value);
-//     }
-// }
+    #[test]
+    fn it_works() {
+        let c = Cell {
+            value: UnsafeCell::new(42),
+        };
+        assert_eq!(c.get(), 42);
+    }
+}

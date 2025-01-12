@@ -1,5 +1,3 @@
-#![feature(auto_traits, negative_impls)]
-
 pub struct UnsafeCell<T: ?Sized> {
     value: T,
 }
@@ -7,7 +5,7 @@ pub struct UnsafeCell<T: ?Sized> {
 impl<T: ?Sized> !Sync for UnsafeCell<T> {}
 
 impl<T> UnsafeCell<T> {
-    pub fn new(value: T) -> Self {
+    pub const fn new(value: T) -> Self {
         Self { value }
     }
 
@@ -34,13 +32,13 @@ impl<T: ?Sized> UnsafeCell<T> {
         self as *const UnsafeCell<T> as *const T as *mut T
     }
 
-    pub fn get_mut(&mut self) -> &mut T {
+    pub const fn get_mut(&mut self) -> &mut T {
         &mut self.value
     }
 
-    pub fn from_mut(value: &mut T) -> &mut Self<T> {
+    pub const fn from_mut(value: &mut T) -> &mut UnsafeCell<T> {
         // SAFETY: UnsafeCell<T> has the same memory layout as T
-        unsafe { &mut *(value as *mut T as *mut Self<T>) }
+        unsafe { &mut *(value as *mut T as *mut UnsafeCell<T>) }
     }
 }
 
@@ -50,8 +48,31 @@ impl<T: Default> Default for UnsafeCell<T> {
     }
 }
 
-impl<T> FromT<T> for UnsafeCell<T> {
-    fn from(t: T) -> Self {
+impl<T> From<T> for UnsafeCell<T> {
+    fn from(t: T) -> UnsafeCell<T> {
         UnsafeCell::new(t)
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    #[test]
+    pub fn replace_pointer_value() {
+        let cell = UnsafeCell::new(42);
+        let ptr: *mut i32 = cell.get();
+        unsafe {
+            *ptr = 13;
+        }
+        assert_eq!(cell.into_inner(), 13);
+    }
+
+    #[test]
+    pub fn get_mut_test() {
+        let mut cell = UnsafeCell::new(42);
+        let mut_ref = cell.get_mut();
+        *mut_ref = 43;
+        assert_eq!(cell.into_inner(), 43);
     }
 }
