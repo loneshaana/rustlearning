@@ -1,6 +1,6 @@
 use crate::unsafecell::UnsafeCell;
 
-struct Cell<T: ?Sized> {
+pub struct Cell<T: ?Sized> {
     value: UnsafeCell<T>,
 }
 

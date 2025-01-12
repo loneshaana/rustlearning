@@ -18,7 +18,7 @@ impl<T> UnsafeCell<T> {
 impl<T: ?Sized> UnsafeCell<T> {
     // Gets a mutable pointer to the wrapped value.
 
-    pub fn get(&self) -> *mut T {
+    pub const fn get(&self) -> *mut T {
         // the case converts self into a raw, immutable pointer of an UnsafeCell<T>
 
         // cast changes the pointer from *const UnsafeCell<T> to *const T
