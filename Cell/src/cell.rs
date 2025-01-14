@@ -63,6 +63,7 @@ impl<T> Cell<T> {
     }
 }
 
+// Add functionality to Cell if T has a Copy trait.
 impl<T: Copy> Cell<T> {
     // Returns Copy of the contained value
 
