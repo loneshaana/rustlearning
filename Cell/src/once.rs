@@ -20,6 +20,7 @@ pub struct OnceCell<T> {
     // Invariant: written to at most once.
     inner: UnsafeCell<Option<T>>,
 }
+
 impl<T> !Sync for OnceCell<T> {}
 
 impl<T> OnceCell<T> {
@@ -56,6 +57,7 @@ impl<T> OnceCell<T> {
     /// sets the contents of the cell `value` if the cell was empty, then
     /// returns a reference to it.
     pub fn try_insert(&self, value: T) -> Result<&T, (&T, T)> {
+        // If there is an existing value then return an Error with the Old Value.
         if let Some(old) = self.get() {
             return Err((old, value));
         }
@@ -74,7 +76,6 @@ impl<T> OnceCell<T> {
 
     /// Consumes the cell, returning the wrapped value.
     /// Returns `None` if the cell was empty
-    ///
     pub fn into_inner(self) -> Option<T> {
         self.inner.into_inner()
     }
