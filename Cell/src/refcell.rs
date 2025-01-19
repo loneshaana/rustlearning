@@ -67,7 +67,7 @@ impl<T: ?Sized> RefCell<T> {
     pub fn borrow(&self) -> Ref<'_, T> {
         match self.try_borrow() {
             Ok(val) => val,
-            Err(_) => panic!("An immutable refernece exists, so can't create a mutable refernece"),
+            Err(_) => panic!("An immutable reference exists, so can't create a mutable reference"),
         }
     }
 
@@ -100,5 +100,65 @@ impl<T: ?Sized> RefCell<T> {
             Ok(b) => b,
             Err(_) => panic!("RefCell<T> already borrowed"),
         }
+    }
+}
+#[cfg(test)]
+mod tests {
+
+    use super::*;
+    #[test]
+    fn test_new() {
+        let cell = RefCell::new(5);
+        assert_eq!(*cell.borrow(), 5);
+    }
+
+    #[test]
+    fn test_replace() {
+        let cell = RefCell::new(5);
+        let old_value = cell.replace(10);
+        assert_eq!(old_value, 5);
+        assert_eq!(*cell.borrow(), 10);
+    }
+
+    #[test]
+    fn test_swap() {
+        let cell1 = RefCell::new(5);
+        let cell2 = RefCell::new(10);
+        cell1.swap(&cell2);
+        assert_eq!(*cell1.borrow(), 10);
+        assert_eq!(*cell2.borrow(), 5);
+    }
+
+    #[test]
+    fn test_borrow() {
+        let cell = RefCell::new(5);
+        let borrow = cell.borrow();
+        assert_eq!(*borrow, 5);
+    }
+
+    #[test]
+    fn test_borrow_mut() {
+        let cell = RefCell::new(5);
+        {
+            let mut borrow_mut = cell.borrow_mut();
+            *borrow_mut = 10;
+        }
+        assert_eq!(*cell.borrow(), 10);
+    }
+
+    #[test]
+    #[should_panic(expected = "RefCell<T> already borrowed")]
+    fn test_borrow_mut_panic() {
+        let cell = RefCell::new(5);
+        let _borrow1 = cell.borrow_mut();
+        let _borrow2 = cell.borrow_mut(); // This should panic
+    }
+
+    #[test]
+    #[should_panic(expected = "RefCell<T> already borrowed")]
+    fn test_borrow_panic() {
+        let cell = RefCell::new(5);
+        let _borrow1 = cell.borrow();
+        let _borrow2 = cell.borrow_mut(); // This should panic
     }
 }

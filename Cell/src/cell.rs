@@ -1,5 +1,8 @@
+use std::fmt::Debug;
+
 use crate::unsafecell::UnsafeCell;
 
+#[derive(Debug)]
 pub struct Cell<T: ?Sized> {
     value: UnsafeCell<T>,
 }
@@ -105,5 +108,75 @@ mod tests {
             value: UnsafeCell::new(42),
         };
         assert_eq!(c.get(), 42);
+    }
+
+    #[test]
+    fn test_set() {
+        let c = Cell::new(10);
+        c.set(20);
+        assert_eq!(c.get(), 20);
+    }
+
+    #[test]
+    fn test_replace() {
+        let c = Cell::new(30);
+        c.replace(40);
+        assert_eq!(c.get(), 40);
+    }
+
+    #[test]
+    fn test_into_inner() {
+        let c = Cell::new(50);
+        assert_eq!(c.into_inner(), 50);
+    }
+
+    #[test]
+    fn test_clone() {
+        let c1 = Cell::new(60);
+        let c2 = c1.clone();
+        assert_eq!(c1.get(), c2.get());
+    }
+
+    #[test]
+    fn test_default() {
+        let c: Cell<i32> = Cell::default();
+        assert_eq!(c.get(), 0);
+    }
+
+    #[test]
+    fn test_partial_eq() {
+        let c1 = Cell::new(70);
+        let c2 = Cell::new(70);
+        assert_eq!(c1, c2);
+    }
+
+    #[test]
+    fn test_from() {
+        let c = Cell::from(80);
+        assert_eq!(c.get(), 80);
+    }
+
+    #[test]
+    fn test_as_ptr() {
+        let c = Cell::new(90);
+        let ptr = c.as_ptr();
+        unsafe {
+            assert_eq!(*ptr, 90);
+        }
+    }
+
+    #[test]
+    fn test_get_mut() {
+        let mut c = Cell::new(100);
+        *c.get_mut() = 110;
+        assert_eq!(c.get(), 110);
+    }
+
+    #[test]
+    fn test_from_mut() {
+        let mut value = 120;
+        let c = Cell::from_mut(&mut value);
+        c.set(130);
+        assert_eq!(value, 130);
     }
 }

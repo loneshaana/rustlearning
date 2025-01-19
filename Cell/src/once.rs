@@ -16,6 +16,7 @@ use std::mem;
 
 use crate::unsafecell::UnsafeCell;
 
+#[derive(Debug)]
 pub struct OnceCell<T> {
     // Invariant: written to at most once.
     inner: UnsafeCell<Option<T>>,
@@ -126,3 +127,80 @@ impl<T: PartialEq> PartialEq for OnceCell<T> {
 }
 
 impl<T: Eq> Eq for OnceCell<T> {}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_once_cell_new() {
+        let cell: OnceCell<i32> = OnceCell::new();
+        assert!(cell.get().is_none());
+    }
+
+    #[test]
+    fn test_once_cell_set() {
+        let cell = OnceCell::new();
+        assert!(cell.set(10).is_ok());
+        assert_eq!(cell.get(), Some(&10));
+        assert!(cell.set(20).is_err());
+    }
+
+    #[test]
+    fn test_once_cell_get_mut() {
+        let mut cell = OnceCell::new();
+        assert!(cell.set(10).is_ok());
+        if let Some(value) = cell.get_mut() {
+            *value = 20;
+        }
+        assert_eq!(cell.get(), Some(&20));
+    }
+
+    #[test]
+    fn test_once_cell_try_insert() {
+        let cell = OnceCell::new();
+        assert!(cell.try_insert(10).is_ok());
+        assert_eq!(cell.get(), Some(&10));
+        assert!(cell.try_insert(20).is_err());
+    }
+
+    #[test]
+    fn test_once_cell_into_inner() {
+        let cell = OnceCell::from(10);
+        assert_eq!(cell.into_inner(), Some(10));
+    }
+
+    #[test]
+    fn test_once_cell_take() {
+        let mut cell = OnceCell::from(10);
+        assert_eq!(cell.take(), Some(10));
+        assert!(cell.get().is_none());
+    }
+
+    #[test]
+    fn test_once_cell_clone() {
+        let cell = OnceCell::from(10);
+        let cloned_cell = cell.clone();
+        assert_eq!(cloned_cell.get(), Some(&10));
+    }
+
+    #[test]
+    fn test_once_cell_default() {
+        let cell: OnceCell<i32> = OnceCell::default();
+        assert!(cell.get().is_none());
+    }
+
+    #[test]
+    fn test_once_cell_partial_eq() {
+        let cell1 = OnceCell::from(10);
+        let cell2 = OnceCell::from(10);
+        assert_eq!(cell1, cell2);
+    }
+
+    #[test]
+    fn test_once_cell_eq() {
+        let cell1 = OnceCell::from(10);
+        let cell2 = OnceCell::from(10);
+        assert!(cell1 == cell2);
+    }
+}

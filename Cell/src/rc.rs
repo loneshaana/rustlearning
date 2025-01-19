@@ -90,3 +90,54 @@ impl<T: ?Sized> Drop for Rc<T> {
 
 // !Sized , not Sized at all
 // ?Sized, it does not have to be Sized
+
+#[cfg(test)]
+mod tests {
+
+    use super::*;
+
+    #[test]
+    fn test_rc_new() {
+        let rc = Rc::new(5);
+        assert_eq!(*rc, 5);
+    }
+
+    #[test]
+    fn test_rc_clone() {
+        let rc1 = Rc::new(5);
+        let rc2 = rc1.clone();
+        assert_eq!(*rc1, 5);
+        assert_eq!(*rc2, 5);
+    }
+
+    #[test]
+    fn test_rc_refcount() {
+        let rc1 = Rc::new(5);
+        let rc2 = rc1.clone();
+        let rc3 = rc2.clone();
+        assert_eq!(*rc1, 5);
+        assert_eq!(*rc2, 5);
+        assert_eq!(*rc3, 5);
+    }
+
+    #[test]
+    fn test_rc_drop() {
+        struct DropTest {
+            dropped: Rc<Cell<bool>>,
+        }
+
+        impl Drop for DropTest {
+            fn drop(&mut self) {
+                self.dropped.set(true);
+            }
+        }
+
+        let dropped = Rc::new(Cell::new(false));
+        {
+            let _rc = Rc::new(DropTest {
+                dropped: dropped.clone(),
+            });
+        }
+        assert!(dropped.get());
+    }
+}

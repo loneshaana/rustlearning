@@ -96,3 +96,59 @@ impl<B: ?Sized + ToOwned> Cow<'_, B> {
         }
     }
 }
+#[cfg(test)]
+mod tests {
+
+    use super::*;
+
+    #[test]
+    fn test_borrowed() {
+        let s = "hello".to_string();
+        let cow: Cow<str> = Cow::Borrowed(&s);
+        assert!(cow.is_borrowed());
+        assert!(!cow.is_owned());
+        assert_eq!(&*cow, "hello");
+    }
+
+    #[test]
+    fn test_owned() {
+        let s = "hello".to_string();
+        let cow: Cow<str> = Cow::Owned(s.clone());
+        assert!(!cow.is_borrowed());
+        assert!(cow.is_owned());
+        assert_eq!(&*cow, "hello");
+    }
+
+    #[test]
+    fn test_to_mut() {
+        let s = "hello".to_string();
+        let mut cow: Cow<str> = Cow::Borrowed(&s);
+        assert!(cow.is_borrowed());
+        let mutable_ref = cow.to_mut();
+        mutable_ref.push_str(" world");
+        assert!(cow.is_owned());
+        assert_eq!(&*cow, "hello world");
+    }
+
+    #[test]
+    fn test_into_owned() {
+        let s = "hello".to_string();
+        let cow: Cow<str> = Cow::Borrowed(&s);
+        let owned = cow.into_owned();
+        assert_eq!(owned, "hello");
+    }
+
+    #[test]
+    fn test_clone() {
+        let s = "hello".to_string();
+        let cow: Cow<str> = Cow::Borrowed(&s);
+        let cloned = cow.clone();
+        assert!(cloned.is_borrowed());
+        assert_eq!(&*cloned, "hello");
+
+        let cow: Cow<str> = Cow::Owned(s.clone());
+        let cloned = cow.clone();
+        assert!(cloned.is_owned());
+        assert_eq!(&*cloned, "hello");
+    }
+}

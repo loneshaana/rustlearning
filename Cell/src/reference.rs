@@ -1,5 +1,7 @@
 use crate::cell::Cell;
+use core::borrow;
 use std::{
+    borrow::Borrow,
     marker::PhantomData,
     ops::{Deref, DerefMut},
     ptr::NonNull,
@@ -68,6 +70,17 @@ impl<'b> BorrowRef<'b> {
     }
 }
 
+impl Clone for BorrowRef<'_> {
+    fn clone(&self) -> Self {
+        let borrow = self.borrow.get();
+        assert!(borrow != BorrowFlag::MAX);
+        self.borrow.set(borrow + 1);
+        BorrowRef {
+            borrow: self.borrow,
+        }
+    }
+}
+
 impl<'b> BorrowRefMut<'b> {
     pub fn new(borrow: &'b Cell<BorrowFlag>) -> Option<BorrowRefMut<'b>> {
         match borrow.get() {
@@ -78,5 +91,105 @@ impl<'b> BorrowRefMut<'b> {
             }
             _ => None,
         }
+    }
+}
+
+// impl Clone for BorrowRefMut<'_> {
+//     fn clone(&self) -> Self {
+//         let borrow = self.borrow.get();
+//         assert!(borrow != BorrowFlag::MIN);
+//         self.borrow.set(borrow - 1);
+//         BorrowRefMut {
+//             borrow: self.borrow,
+//         }
+//     }
+// }
+
+impl Drop for BorrowRef<'_> {
+    fn drop(&mut self) {
+        let b = self.borrow.get();
+        self.borrow.set(b - 1);
+    }
+}
+
+impl Drop for BorrowRefMut<'_> {
+    fn drop(&mut self) {
+        let b = self.borrow.get();
+        self.borrow.set(b + 1);
+    }
+}
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_borrow_ref_new() {
+        let cell = Cell::new(UNUSED);
+        let borrow_ref = BorrowRef::new(&cell);
+        assert!(borrow_ref.is_some());
+        assert_eq!(cell.get(), 1);
+    }
+
+    #[test]
+    fn test_borrow_ref_clone() {
+        let cell = Cell::new(UNUSED);
+        let borrow_ref = BorrowRef::new(&cell).unwrap();
+        let borrow_ref_clone = borrow_ref.clone();
+        assert_eq!(cell.get(), 2);
+    }
+
+    #[test]
+    fn test_borrow_ref_drop() {
+        let cell = Cell::new(UNUSED);
+        {
+            let borrow_ref = BorrowRef::new(&cell).unwrap();
+            assert_eq!(cell.get(), 1);
+        }
+        assert_eq!(cell.get(), UNUSED);
+    }
+
+    #[test]
+    fn test_borrow_ref_mut_new() {
+        let cell = Cell::new(UNUSED);
+        let borrow_ref_mut = BorrowRefMut::new(&cell);
+        assert!(borrow_ref_mut.is_some());
+        assert_eq!(cell.get(), UNUSED - 1);
+    }
+
+    #[test]
+    fn test_borrow_ref_mut_drop() {
+        let cell = Cell::new(UNUSED);
+        {
+            let borrow_ref_mut = BorrowRefMut::new(&cell).unwrap();
+            assert_eq!(cell.get(), UNUSED - 1);
+        }
+        assert_eq!(cell.get(), UNUSED);
+    }
+
+    #[test]
+    fn test_ref_deref() {
+        let value = 42;
+        let cell = Cell::new(UNUSED);
+        let borrow_ref = BorrowRef::new(&cell).unwrap();
+        let ref_value = Ref {
+            value: NonNull::from(&value),
+            borrow: borrow_ref,
+        };
+        assert_eq!(*ref_value, 42);
+    }
+
+    #[test]
+    fn test_ref_mut_deref() {
+        let mut value = 42;
+        let cell = Cell::new(UNUSED);
+        let borrow_ref_mut = BorrowRefMut::new(&cell).unwrap();
+        let mut ref_mut_value = RefMut {
+            value: NonNull::from(&mut value),
+            borrow: borrow_ref_mut,
+            marker: PhantomData,
+        };
+        assert_eq!(*ref_mut_value, 42);
+        *ref_mut_value = 43;
+        assert_eq!(*ref_mut_value, 43);
     }
 }

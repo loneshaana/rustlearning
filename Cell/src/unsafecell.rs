@@ -1,3 +1,4 @@
+#[derive(Debug)]
 pub struct UnsafeCell<T: ?Sized> {
     value: T,
 }
@@ -74,5 +75,32 @@ mod test {
         let mut_ref = cell.get_mut();
         *mut_ref = 43;
         assert_eq!(cell.into_inner(), 43);
+    }
+
+    #[test]
+    pub fn from_mut_test() {
+        let mut value = 42;
+        let cell = UnsafeCell::from_mut(&mut value);
+        let mut_ref = cell.get_mut();
+        *mut_ref = 44;
+        assert_eq!(value, 44);
+    }
+
+    #[test]
+    pub fn default_test() {
+        let cell: UnsafeCell<i32> = UnsafeCell::default();
+        assert_eq!(cell.into_inner(), 0);
+    }
+
+    #[test]
+    pub fn from_test() {
+        let cell = UnsafeCell::from(42);
+        assert_eq!(cell.into_inner(), 42);
+    }
+
+    #[test]
+    pub fn into_inner_test() {
+        let cell = UnsafeCell::new(42);
+        assert_eq!(cell.into_inner(), 42);
     }
 }
