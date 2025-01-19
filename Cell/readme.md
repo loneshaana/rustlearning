@@ -87,6 +87,145 @@ In this example, we use `SyncUnsafeCell` to allow multiple threads to increment 
 - `SyncUnsafeCell` should be used with caution, as improper use can lead to undefined behavior.
 - Always ensure that accesses to the inner value are properly synchronized to avoid data races.
 
+# `Cell` in Rust
+
+`Cell` is a type provided by the `std::cell` module in Rust that allows for interior mutability. Unlike `RefCell`, `Cell` provides a simpler and more efficient way to achieve interior mutability by allowing you to get and set the value directly. However, `Cell` only works with types that implement the `Copy` trait.
+
+## Definition
+
+```rust
+pub struct Cell<T: Copy> {
+    // fields omitted
+}
+```
+
+## Methods
+
+- `new(value: T) -> Cell<T>`: Creates a new `Cell` containing the given value.
+- `get(&self) -> T`: Returns a copy of the value inside the `Cell`.
+- `set(&self, value: T)`: Sets the value inside the `Cell` to the given value.
+- `replace(&self, value: T) -> T`: Replaces the value inside the `Cell` with the given value, returning the old value.
+- `swap(&self, other: &Cell<T>)`: Swaps the values of two `Cell`s.
+- `take(&self) -> T`: Takes the value out of the `Cell`, leaving the `Cell` with the default value for its type.
+
+## Examples
+
+### Basic Usage
+
+```rust
+use std::cell::Cell;
+
+let cell = Cell::new(5);
+assert_eq!(cell.get(), 5);
+
+cell.set(10);
+assert_eq!(cell.get(), 10);
+
+let old_value = cell.replace(20);
+assert_eq!(old_value, 10);
+assert_eq!(cell.get(), 20);
+```
+
+### Swapping Values
+
+```rust
+use std::cell::Cell;
+
+let cell1 = Cell::new(1);
+let cell2 = Cell::new(2);
+
+cell1.swap(&cell2);
+
+assert_eq!(cell1.get(), 2);
+assert_eq!(cell2.get(), 1);
+```
+
+## Safety
+
+`Cell` ensures that Rust's borrowing rules are upheld at compile time. It provides a safe way to achieve interior mutability without the overhead of runtime checks. However, `Cell` only works with types that implement the `Copy` trait, which means it cannot be used with types that require ownership semantics.
+
+## Use Cases
+
+`Cell` is typically used in scenarios where you need interior mutability for simple `Copy` types and want to avoid the overhead of runtime checks. It is useful in single-threaded contexts where performance is critical.
+
+## Notes
+
+- `Cell` and its methods are not thread-safe. For thread-safe interior mutability, consider using `std::sync::Mutex` or `std::sync::RwLock`.
+- `Cell` is a zero-cost abstraction for interior mutability, making it ideal for performance-critical code.
+- Always handle `Cell` with care to ensure that the borrowing rules are not violated.
+
+By understanding and using `Cell`, you can safely manage interior mutability in Rust for `Copy` types while adhering to borrowing rules enforced at compile time.
+
+# `RefCell` in Rust
+
+`RefCell` is a type provided by the `std::cell` module in Rust that allows for interior mutability. This means that you can mutate the value inside the `RefCell` even when the `RefCell` itself is immutable. `RefCell` enforces Rust's borrowing rules at runtime, rather than at compile time.
+
+## Definition
+
+```rust
+pub struct RefCell<T: ?Sized> {
+    // fields omitted
+}
+```
+
+## Methods
+
+- `new(value: T) -> RefCell<T>`: Creates a new `RefCell` containing the given value.
+- `borrow(&self) -> Ref<T>`: Immutably borrows the wrapped value. Panics if the value is currently mutably borrowed.
+- `borrow_mut(&self) -> RefMut<T>`: Mutably borrows the wrapped value. Panics if the value is currently borrowed.
+- `try_borrow(&self) -> Result<Ref<T>, BorrowError>`: Attempts to immutably borrow the wrapped value. Returns an error if the value is currently mutably borrowed.
+- `try_borrow_mut(&self) -> Result<RefMut<T>, BorrowMutError>`: Attempts to mutably borrow the wrapped value. Returns an error if the value is currently borrowed.
+- `replace(&self, t: T) -> T`: Replaces the wrapped value with a new one, returning the old value.
+- `into_inner(self) -> T`: Consumes the `RefCell`, returning the wrapped value.
+
+## Examples
+
+### Basic Usage
+
+```rust
+use std::cell::RefCell;
+
+let cell = RefCell::new(5);
+{
+    let mut borrowed_mut = cell.borrow_mut();
+    *borrowed_mut += 1;
+}
+println!("{}", cell.borrow()); // Output: 6
+```
+
+### Handling Borrow Errors
+
+```rust
+use std::cell::RefCell;
+
+let cell = RefCell::new(5);
+
+let borrowed1 = cell.borrow();
+let borrowed2 = cell.borrow();
+
+assert_eq!(*borrowed1, 5);
+assert_eq!(*borrowed2, 5);
+
+let borrow_mut = cell.try_borrow_mut();
+assert!(borrow_mut.is_err()); // Cannot borrow mutably while immutably borrowed
+```
+
+## Safety
+
+`RefCell` ensures that Rust's borrowing rules are upheld at runtime. Attempting to create multiple mutable borrows or mutable and immutable borrows simultaneously will cause a panic. This makes `RefCell` safe to use in single-threaded contexts where the overhead of runtime checks is acceptable.
+
+## Use Cases
+
+`RefCell` is typically used in scenarios where you need interior mutability but want to enforce borrowing rules at runtime rather than compile time. This is useful in single-threaded contexts where the overhead of runtime checks is acceptable.
+
+## Notes
+
+- `RefCell` and its associated types (`Ref` and `RefMut`) are not thread-safe. For thread-safe interior mutability, consider using `std::sync::Mutex` or `std::sync::RwLock`.
+- Always handle `Ref` and `RefMut` with care to avoid panics due to borrowing rule violations.
+- `RefCell` implements the `Deref` and `DerefMut` traits, allowing them to be used like regular references.
+
+By understanding and using `RefCell`, you can safely manage interior mutability in Rust while adhering to borrowing rules enforced at runtime.
+
 # `Ref` and `RefMut` in Rust
 
 `Ref` and `RefMut` are types provided by the `std::cell::RefCell` module in Rust. They are used to represent borrowed references to the value inside a `RefCell`.
@@ -149,6 +288,146 @@ println!("{}", cell.borrow()); // Output: 6
 - `Ref` and `RefMut` implement `Deref` and `DerefMut` traits, respectively, allowing them to be used like regular references.
 
 By understanding and using `Ref` and `RefMut`, you can safely manage interior mutability in Rust while adhering to borrowing rules enforced at runtime.
+
+# `OnceCell` in Rust
+
+`OnceCell` is a synchronization primitive provided by the `once_cell` crate in Rust. It allows for the lazy, one-time initialization of a value. Once a value is set in a `OnceCell`, it cannot be changed, making it a safe and efficient way to handle one-time initialization in concurrent contexts.
+
+## Definition
+
+```rust
+pub struct OnceCell<T> {
+    // fields omitted
+}
+```
+
+## Methods
+
+- `new() -> OnceCell<T>`: Creates a new, empty `OnceCell`.
+- `get(&self) -> Option<&T>`: Returns a reference to the value if it has been initialized, or `None` if it has not.
+- `get_or_init<F>(&self, f: F) -> &T where F: FnOnce() -> T`: Returns a reference to the value, initializing it with the provided function if it has not been initialized yet.
+- `set(&self, value: T) -> Result<(), T>`: Sets the value of the `OnceCell`. Returns `Ok(())` if the value was set successfully, or `Err(value)` if the cell was already initialized.
+- `take(&self) -> Option<T>`: Takes the value out of the `OnceCell`, leaving it uninitialized. Returns `Some(value)` if the cell was initialized, or `None` if it was not.
+
+## Examples
+
+### Basic Usage
+
+```rust
+use once_cell::sync::OnceCell;
+
+static CELL: OnceCell<i32> = OnceCell::new();
+
+fn main() {
+    assert!(CELL.get().is_none());
+
+    CELL.set(10).expect("Failed to set value");
+    assert_eq!(CELL.get(), Some(&10));
+
+    // Attempting to set the value again will fail
+    assert!(CELL.set(20).is_err());
+}
+```
+
+### Lazy Initialization
+
+```rust
+use once_cell::sync::OnceCell;
+
+static CELL: OnceCell<String> = OnceCell::new();
+
+fn main() {
+    let value = CELL.get_or_init(|| "Hello, world!".to_string());
+    assert_eq!(value, "Hello, world!");
+
+    // The value is already initialized, so the closure is not called
+    let value = CELL.get_or_init(|| "Goodbye, world!".to_string());
+    assert_eq!(value, "Hello, world!");
+}
+```
+
+## Use Cases
+
+- **Lazy Initialization**: `OnceCell` is ideal for scenarios where you want to defer the initialization of a value until it is actually needed.
+- **Global Constants**: It can be used to create global constants that are initialized on first use, avoiding the need for complex initialization logic.
+- **Thread-Safe Initialization**: `OnceCell` ensures that the value is initialized only once, even in the presence of concurrent access, making it suitable for use in multi-threaded applications.
+
+## Notes
+
+- `OnceCell` is a zero-cost abstraction for one-time initialization, providing both safety and efficiency.
+- The `once_cell` crate also provides `Lazy`, a wrapper around `OnceCell` that provides a more ergonomic API for lazy initialization.
+- `OnceCell` can be used in both single-threaded and multi-threaded contexts, with the `sync` module providing thread-safe variants.
+
+By understanding and using `OnceCell`, you can efficiently manage one-time initialization in Rust, ensuring both safety and performance in your applications.
+
+# `Rc` in Rust
+
+`Rc` (Reference Counted) is a smart pointer provided by the `std::rc` module in Rust. It enables multiple ownership of data by keeping track of the number of references to the data. When the last reference to the data is dropped, the data is deallocated. `Rc` is used in single-threaded scenarios where shared ownership is needed.
+
+## Definition
+
+```rust
+pub struct Rc<T> {
+    // fields omitted
+}
+```
+
+## Methods
+
+- `new(value: T) -> Rc<T>`: Creates a new `Rc` instance containing the given value.
+- `clone(&self) -> Rc<T>`: Creates a new `Rc` instance that points to the same value, incrementing the reference count.
+- `strong_count(&self) -> usize`: Returns the number of `Rc` instances pointing to the same value.
+- `weak_count(&self) -> usize`: Returns the number of `Weak` references pointing to the same value.
+- `get_mut(&mut self) -> Option<&mut T>`: Provides a mutable reference to the value if there are no other `Rc` or `Weak` references.
+- `try_unwrap(self) -> Result<T, Rc<T>>`: Attempts to unwrap the `Rc`, returning the value if there are no other `Rc` references.
+
+## Examples
+
+### Basic Usage
+
+```rust
+use std::rc::Rc;
+
+let rc1 = Rc::new(5);
+let rc2 = Rc::clone(&rc1);
+
+assert_eq!(Rc::strong_count(&rc1), 2);
+assert_eq!(Rc::strong_count(&rc2), 2);
+
+assert_eq!(*rc1, 5);
+assert_eq!(*rc2, 5);
+```
+
+### Using `Rc` with `Weak`
+
+```rust
+use std::rc::{Rc, Weak};
+
+let rc = Rc::new(5);
+let weak: Weak<i32> = Rc::downgrade(&rc);
+
+assert_eq!(Rc::strong_count(&rc), 1);
+assert_eq!(Rc::weak_count(&rc), 1);
+
+if let Some(strong) = weak.upgrade() {
+    assert_eq!(*strong, 5);
+} else {
+    println!("The value has been dropped");
+}
+```
+
+## Use Cases
+
+- **Shared Ownership**: `Rc` is ideal for scenarios where multiple parts of a program need to share ownership of data.
+- **Graph Structures**: `Rc` can be used to create cyclic data structures like graphs, where nodes need to reference each other.
+
+## Notes
+
+- `Rc` is not thread-safe. For multi-threaded scenarios, consider using `Arc` (Atomic Reference Counted) from the `std::sync` module.
+- `Rc` provides shared ownership but does not allow for interior mutability. To mutate the value inside an `Rc`, consider using `RefCell` in combination with `Rc`.
+- `Rc` and `Weak` references form a cycle if not handled carefully, which can lead to memory leaks. Ensure that cycles are broken by using `Weak` references where appropriate.
+
+By understanding and using `Rc`, you can efficiently manage shared ownership of data in single-threaded Rust applications, ensuring both safety and performance.
 
 # `Cow` in Rust
 
