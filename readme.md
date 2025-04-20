@@ -1,4 +1,4 @@
-# Data Structures In Rust
+# Data Structures In Rust - AiCoder
 
 ## Table of Contents
 
