@@ -65,10 +65,14 @@ impl<T> Sender<T> {
 
 pub struct Receiver<T> {
     shared: Arc<Shared<T>>,
+    buffer: VecDeque<T>,
 }
 
 impl<T> Receiver<T> {
     pub fn recv(&mut self) -> Option<T> {
+        if let Some(t) = self.buffer.pop_front() {
+            return Some(t);
+        }
         let mut inner = self.shared.inner.lock().unwrap();
         /*
         queue.pop_front().unwrap()
@@ -78,7 +82,12 @@ impl<T> Receiver<T> {
          */
         loop {
             match inner.queue.pop_front() {
-                Some(t) => return Some(t), // releases the mutex
+                Some(t) => {
+                    if !inner.queue.is_empty() {
+                        std::mem::swap(&mut self.buffer, &mut inner.queue);
+                    }
+                    return Some(t);
+                } // releases the mutex
                 None if inner.senders == 0 => return None,
                 None => {
                     inner = self.shared.available.wait(inner).unwrap(); // wait requires you give up the guard and then wait, if it wakes up it take the mutex lock for you
@@ -112,6 +121,13 @@ struct Shared<T> {
     */
 }
 
+impl<T> Iterator for Receiver<T> {
+    type Item = T;
+    fn next(&mut self) -> Option<Self::Item> {
+        self.recv()
+    }
+}
+
 pub fn channel<T>() -> (Sender<T>, Receiver<T>) {
     let inner = Inner {
         queue: VecDeque::default(),
@@ -130,6 +146,7 @@ pub fn channel<T>() -> (Sender<T>, Receiver<T>) {
         },
         Receiver {
             shared: shared.clone(),
+            buffer: VecDeque::default(),
         },
     )
 }
@@ -146,9 +163,17 @@ mod tests {
     }
 
     #[test]
-    fn closed() {
+    fn closed_tx() {
         let (tx, mut rx) = channel::<()>();
         drop(tx);
         assert_eq!(rx.recv(), None);
+    }
+
+    #[test]
+    fn closed_rx() {
+        let (mut tx, rx) = channel::<i32>();
+        drop(rx);
+        tx.send(42);
+        // assert_eq!(rx.recv(), None);
     }
 }
