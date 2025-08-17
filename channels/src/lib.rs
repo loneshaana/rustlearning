@@ -7,7 +7,7 @@ use std::{
 // Arc is needed to have a shared inner datastructure for both sender and receiver.
 
 pub struct Sender<T> {
-    inner: Arc<Inner<T>>,
+    shared: Arc<Shared<T>>,
 }
 
 /*
@@ -25,6 +25,9 @@ impl<T:Clone> Clone for Sender<T> {
 
 impl<T> Clone for Sender<T> {
     fn clone(&self) -> Self {
+        let mut inner = self.shared.inner.lock().unwrap();
+        inner.senders += 1;
+        drop(inner); // release lock
         Sender {
             /*
             inner: self.inner.clone(), // This can't be used.
@@ -32,29 +35,41 @@ impl<T> Clone for Sender<T> {
             the data which is with the Arc or to call the clone method of the Arc because Arc is basically dereferencing
             the inner type, so what we usually want to use is Arc::clone(&self.inner) to say specifically want to clone the Arc
              */
-            inner: Arc::clone(&self.inner),
+            shared: Arc::clone(&self.shared),
+        }
+    }
+}
+
+impl<T> Drop for Sender<T> {
+    fn drop(&mut self) {
+        let mut inner = self.shared.inner.lock().unwrap();
+        inner.senders -= 1;
+
+        if inner.senders == 0 {
+            self.shared.available.notify_one(); // If it was the last one , notifiy if the receiver is waiting so wakes up.
         }
     }
 }
 
 impl<T> Sender<T> {
     pub fn send(&mut self, t: T) {
-        let mut queue = self.inner.queue.lock().unwrap(); // What if the thread failed to access the lock.
-        queue.push_back(t);
-        drop(queue); //drops the lock, when other notify wakes up the other thread it can take the lock immediately.
+        let mut inner = self.shared.inner.lock().unwrap(); // What if the thread failed to access the lock.
+        inner.queue.push_back(t);
+        drop(inner); //drops the lock, when other notify wakes up the other thread it can take the lock immediately.
 
         // and if any thread is in sleep and is waiting for the data
         // we will use the notify_one method to wake it up.
-        self.inner.available.notify_one();
+        self.shared.available.notify_one();
     }
 }
 
 pub struct Receiver<T> {
-    inner: Arc<Inner<T>>,
+    shared: Arc<Shared<T>>,
 }
 
 impl<T> Receiver<T> {
-    pub fn recv(&mut self) -> T {
+    pub fn recv(&mut self) -> Option<T> {
+        let mut inner = self.shared.inner.lock().unwrap();
         /*
         queue.pop_front().unwrap()
         pop_front returns and option and what if there is no element is the queue.
@@ -62,19 +77,33 @@ impl<T> Receiver<T> {
         For that we use Condvar in Inner
          */
         loop {
-            let mut queue = self.inner.queue.lock().unwrap();
-            match queue.pop_front() {
-                Some(t) => return t, // releases the mutex
+            match inner.queue.pop_front() {
+                Some(t) => return Some(t), // releases the mutex
+                None if inner.senders == 0 => return None,
                 None => {
-                    self.inner.available.wait(queue).unwrap(); // wait requires you give up the guard and then wait, if it wakes up it take the mutex lock for you
+                    inner = self.shared.available.wait(inner).unwrap(); // wait requires you give up the guard and then wait, if it wakes up it take the mutex lock for you
                 }
             }
         }
     }
 }
 
+// #[derive(Default)], we cannot add Default here that requires T to be Default.
+/*
+    we are creating this Inner within shared with the count of total sender because
+    If a receiver is waiting for the data to receive and there are no senders left all are dropped then in that case
+    the receiver will never wake up and would infinitely wait for the data to receive.
+
+    So here we create an Inner type within the Shared and have a usize of senders to track the number of sender
+    and upon Sender drop we wake the receiver if the count of senders got reduced to 0.
+*/
 struct Inner<T> {
-    queue: Mutex<VecDeque<T>>, // why not have it a linkedlist.
+    queue: VecDeque<T>,
+    senders: usize,
+}
+
+struct Shared<T> {
+    inner: Mutex<Inner<T>>,
     available: Condvar,
     /*
     the condvar needs to be outside the mutex, imagine you're currently holding the mutex and  u relalize you to
@@ -85,17 +114,22 @@ struct Inner<T> {
 
 pub fn channel<T>() -> (Sender<T>, Receiver<T>) {
     let inner = Inner {
-        queue: Mutex::default(),
+        queue: VecDeque::default(),
+        senders: 1,
+    };
+
+    let shared = Shared {
+        inner: Mutex::new(inner),
         available: Condvar::new(),
     };
 
-    let inner = Arc::new(inner);
+    let shared = Arc::new(shared);
     (
         Sender {
-            inner: inner.clone(),
+            shared: shared.clone(),
         },
         Receiver {
-            inner: inner.clone(),
+            shared: shared.clone(),
         },
     )
 }
@@ -108,6 +142,13 @@ mod tests {
     fn ping_pong() {
         let (mut tx, mut rx) = channel();
         tx.send(42);
-        assert_eq!(rx.recv(), 42);
+        assert_eq!(rx.recv(), Some(42));
+    }
+
+    #[test]
+    fn closed() {
+        let (tx, mut rx) = channel::<()>();
+        drop(tx);
+        let _ = rx.recv();
     }
 }
